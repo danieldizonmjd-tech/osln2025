@@ -1,0 +1,21 @@
+
+if __name__ == '__main__':
+    create_database()
+    load_model()  # Load the previously trained model
+
+if __name__ == '__main__':
+    create_database()
+    print("Training anomaly prediction model...")
+    history = train_model()
+    print("Visualizing training results...")
+    visualize_training_results(history)
+    print("Evaluating model performance...")
+    accuracy = evaluate_model_performance()
+    print(f"Model accuracy on test set: {accuracy:.2%}")
+    save_model()
+
+if __name__ == '__main__':
+    create_database()
+    load_model()
+    update_graph()
+    root.mainloop()

@@ -1,0 +1,13 @@
+power_output,sunlight_intensity,panel_angle,temperature,diagnosed_problem
+500,10000,30,25,No Problem
+450,10000,30,25,Dirt
+200,10000,30,25,Small Asteroid
+480,9800,32,26,Dirt
+490,10000,30,24,No Problem
+300,8000,28,25,Small Asteroid
+470,9500,33,27,Dirt
+500,10000,30,25,No Problem
+250,8500,29,26,Small Asteroid
+460,9200,31,23,Dirt
+495,10000,30,25,No Problem
+275,8700,30,26,Small Asteroid
