@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 from typing import Iterable
 
@@ -73,6 +74,32 @@ CREATE TABLE IF NOT EXISTS system_metrics (
 """
 
 
+# Columns added after the first database schema.
+_ADDED_COLUMNS = {
+    "sensor_readings": {
+        "environment_mode": "TEXT NOT NULL DEFAULT 'space'",
+        "vibration_g": "REAL NOT NULL DEFAULT 0",
+        "exposure_factor": "REAL NOT NULL DEFAULT 1",
+        "benchmark_power": "REAL NOT NULL DEFAULT 0",
+        "benchmark_ratio": "REAL NOT NULL DEFAULT 1",
+    },
+    "system_metrics": {
+        "environment_mode": "TEXT NOT NULL DEFAULT 'space'",
+        "fixed_charge_power": "REAL NOT NULL DEFAULT 0",
+        "dynamic_charge_power": "REAL NOT NULL DEFAULT 0",
+        "battery_priority_fraction": "REAL NOT NULL DEFAULT 0",
+        "payload_power": "REAL NOT NULL DEFAULT 0",
+        "science_headroom": "REAL NOT NULL DEFAULT 0",
+        "power_margin": "REAL NOT NULL DEFAULT 0",
+        "battery_signed_power": "REAL NOT NULL DEFAULT 0",
+        "battery_pack_voltage": "REAL NOT NULL DEFAULT 0",
+        "battery_pack_current": "REAL NOT NULL DEFAULT 0",
+        "battery_pack_temp": "REAL NOT NULL DEFAULT 0",
+        "local_latency_ms": "REAL NOT NULL DEFAULT 0",
+    },
+}
+
+
 def connect(db_path: Path | str = DB_PATH) -> sqlite3.Connection:
     connection = sqlite3.connect(str(db_path))
     connection.row_factory = sqlite3.Row
@@ -80,33 +107,19 @@ def connect(db_path: Path | str = DB_PATH) -> sqlite3.Connection:
 
 
 def init_database(db_path: Path | str = DB_PATH) -> None:
-    with connect(db_path) as connection:
+    with closing(connect(db_path)) as connection, connection:
         connection.executescript(SCHEMA)
-        _ensure_column(connection, "sensor_readings", "environment_mode", "TEXT NOT NULL DEFAULT 'space'")
-        _ensure_column(connection, "sensor_readings", "vibration_g", "REAL NOT NULL DEFAULT 0")
-        _ensure_column(connection, "sensor_readings", "exposure_factor", "REAL NOT NULL DEFAULT 1")
-        _ensure_column(connection, "sensor_readings", "benchmark_power", "REAL NOT NULL DEFAULT 0")
-        _ensure_column(connection, "sensor_readings", "benchmark_ratio", "REAL NOT NULL DEFAULT 1")
-        _ensure_column(connection, "system_metrics", "environment_mode", "TEXT NOT NULL DEFAULT 'space'")
-        _ensure_column(connection, "system_metrics", "fixed_charge_power", "REAL NOT NULL DEFAULT 0")
-        _ensure_column(connection, "system_metrics", "dynamic_charge_power", "REAL NOT NULL DEFAULT 0")
-        _ensure_column(connection, "system_metrics", "battery_priority_fraction", "REAL NOT NULL DEFAULT 0")
-        _ensure_column(connection, "system_metrics", "payload_power", "REAL NOT NULL DEFAULT 0")
-        _ensure_column(connection, "system_metrics", "science_headroom", "REAL NOT NULL DEFAULT 0")
-        _ensure_column(connection, "system_metrics", "power_margin", "REAL NOT NULL DEFAULT 0")
-        _ensure_column(connection, "system_metrics", "battery_signed_power", "REAL NOT NULL DEFAULT 0")
-        _ensure_column(connection, "system_metrics", "battery_pack_voltage", "REAL NOT NULL DEFAULT 0")
-        _ensure_column(connection, "system_metrics", "battery_pack_current", "REAL NOT NULL DEFAULT 0")
-        _ensure_column(connection, "system_metrics", "battery_pack_temp", "REAL NOT NULL DEFAULT 0")
-        _ensure_column(connection, "system_metrics", "local_latency_ms", "REAL NOT NULL DEFAULT 0")
-
-
-def _ensure_column(
-    connection: sqlite3.Connection, table: str, column: str, definition: str
-) -> None:
-    columns = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
-    if column not in columns:
-        connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+        # Keep the schema check and upgrade together if two dashboards start at once.
+        connection.execute("BEGIN IMMEDIATE")
+        for table, definitions in _ADDED_COLUMNS.items():
+            existing_columns = {
+                row["name"] for row in connection.execute(f"PRAGMA table_info({table})")
+            }
+            for column, definition in definitions.items():
+                if column not in existing_columns:
+                    connection.execute(
+                        f"ALTER TABLE {table} ADD COLUMN {column} {definition}"
+                    )
 
 
 def insert_readings(rows: Iterable[dict], db_path: Path | str = DB_PATH) -> None:

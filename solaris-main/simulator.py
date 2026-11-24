@@ -584,7 +584,10 @@ class SolarArraySimulator:
         )
 
 
-def synthesize_dataset(samples: int = 24000, seed: int = 7) -> tuple[list[list[float]], list[int]]:
+def synthesize_dataset(
+    samples: int = 24000, seed: int = 7
+) -> tuple[list[list[float]], list[int]]:
+    """Generate labeled panel readings for training in both environments."""
     random.seed(seed)
     rows: list[list[float]] = []
     labels: list[int] = []
@@ -592,17 +595,20 @@ def synthesize_dataset(samples: int = 24000, seed: int = 7) -> tuple[list[list[f
     class_to_index = {name: index for index, name in enumerate(ANOMALY_CLASSES)}
 
     for index in range(samples):
-        mode = "earth" if index % 2 else "space"
-        classes = EARTH_ANOMALY_CLASSES if mode == "earth" else SPACE_ANOMALY_CLASSES
+        # Alternate environments to keep both represented in the training set.
+        is_earth = index % 2 == 1
+        mode = "earth" if is_earth else "space"
+        classes = EARTH_ANOMALY_CLASSES if is_earth else SPACE_ANOMALY_CLASSES
         label = classes[(index // 2) % len(classes)]
         simulator.set_environment_mode(mode)
         simulator.inject_event(1, label)
-        simulator.manual_sunlight = random.random() > (0.12 if simulator.environment_mode == "earth" else 0.18)
+        darkness_chance = 0.12 if is_earth else 0.18
+        simulator.manual_sunlight = random.random() > darkness_chance
         reading = simulator._reading_for_array(1, simulator.is_sunlight(), 1.0)
         rows.append(reading.features())
         labels.append(class_to_index[reading.actual_label])
 
-    combined = list(zip(rows, labels))
-    random.shuffle(combined)
-    shuffled_rows, shuffled_labels = zip(*combined)
+    labeled_rows = list(zip(rows, labels))
+    random.shuffle(labeled_rows)
+    shuffled_rows, shuffled_labels = zip(*labeled_rows)
     return list(shuffled_rows), list(shuffled_labels)
